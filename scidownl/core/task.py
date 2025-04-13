@@ -69,8 +69,15 @@ class ScihubTask(BaseTask):
         extractor = HtmlPdfExtractor(content, self)
         pdf_url_title_info = extractor.extract()
 
+        # Always use the sanitized DOI/source as the filename for consistency
+        sanitized_source = self.source_keyword.replace('/', '_').replace('\\', '_')
+        # Save the original title in case it's needed elsewhere
+        original_title = pdf_url_title_info['title']
+        # Override title with sanitized source for filename purposes
+        pdf_url_title_info['title'] = sanitized_source
+
         if self.out is None:
-            # Using title as the filename and save to current directory.
+            # Using sanitized DOI/source as the filename and save to current directory.
             out = pdf_url_title_info['title'] + '.pdf'
         else:
             dirpath, filename = os.path.split(self.out)

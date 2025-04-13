@@ -100,15 +100,34 @@ class HtmlPdfExtractor(BaseExtractor, BaseTaskStep):
         """Extract title from html content."""
         soup = BeautifulSoup(self.content.content, self._parser)
         soup_title = soup.title
-        if soup_title is None or len(soup_title.text) == 0 \
-                or '|' not in soup_title.text:
-            title = ""
-        else:
-            title = soup.title.text.split('|')[1]
+        title = ""
+        
+        # Method 1: Try to get title from title tag with pipe format
+        if soup_title is not None and len(soup_title.text) > 0:
+            if '|' in soup_title.text:
+                title = soup_title.text.split('|')[1]
+            else:
+                # If no pipe, use the whole title
+                title = soup_title.text
+        
+        # Method 2: If title is still empty, try to find <h1> tags
+        if not title.strip() and soup.find('h1'):
+            title = soup.find('h1').text
+            
+        # Method 3: Try to find any meta tags with title info
+        if not title.strip():
+            meta_title = soup.find('meta', {'name': 'citation_title'}) or soup.find('meta', {'property': 'og:title'})
+            if meta_title and 'content' in meta_title.attrs:
+                title = meta_title['content']
+                
         return self._clean_title(title)
 
     @staticmethod
     def _clean_title(title) -> str:
+        """Clean the title string by removing invalid characters."""
+        if not title:
+            return ""
+            
         rstr = r"[\/\\\:\*\?\"\<\>\|]"  # / \ : * ? " < > |
         title = re.sub(rstr, " ", title)[:200]
         return title.strip()

@@ -10,7 +10,7 @@ An unofficial api for downloading papers from SciHub.
 # Quick Usage
 
 ```bash
-# Download with a DOI and filenmae is the paper's title.
+# Download with a DOI and filename is the sanitized DOI.
 $ scidownl download --doi https://doi.org/10.1145/3375633
 
 # Download with a PMID and a user-defined filepath
@@ -18,6 +18,9 @@ $ scidownl download --pmid 31395057 --out ./paper/paper-1.pdf
 
 # Download with a title
 $ scidownl download --title "ImageNet Classification with Deep Convolutional Neural Networks" --out ./paper/paper-1.pdf
+
+# Download multiple DOIs from a file with one DOI per line
+$ scidownl download --input-file ./test/dois.txt --out ./paper/
 
 # Download with a proxy: SCHEME=PROXY_ADDRESS 
 $ scidownl download --pmid 31395057 --out ./paper/paper-1.pdf --proxy http=socks5://127.0.0.1:7890
@@ -151,13 +154,18 @@ Options:
                          /absolute/dir/paper.pdf, ../relative/dir/paper.pdf.
                          If --out is not specified, paper will be downloaded
                          to the current directory with the file name of the
-                         paper's title. If multiple DOIs or multiple PMIDs are
+                         sanitized DOI. If multiple DOIs or multiple PMIDs are
                          provided, the --out option is always considered as
                          the output directory, rather than the output file
                          path.
   -u, --scihub-url TEXT  Scihub domain url. If not specified, automatically
                          choose one from local saved domains. It's recommended
                          to leave this option empty.
+  -x, --proxy TEXT       Proxy with the format of SCHEME=PROXY_ADDRESS. e.g.,
+                         --proxy http=http://127.0.0.1:7890.
+  -i, --input-file TEXT  Path to a file containing one DOI per line. The
+                         output failed DOIs will be saved to a file named
+                         after this file with '_failed.txt' suffix.
   -h, --help             Show this message and exit.
 ```
 
@@ -187,16 +195,31 @@ $ scidownl download --title "ImageNet Classification with Deep Convolutional Neu
 
 # with a mix of DOIs and PMIDs
 $ scidownl download --doi https://doi.org/10.1145/3375633 --pmid 31395057 --pmid 24686414
+
+# with a file containing multiple DOIs
+$ scidownl download --input-file ./test/dois.txt --out ./paper/
 ```
+
+#### Bulk Download with Input File
+
+You can download multiple papers by providing a file containing one DOI per line:
+
+```bash
+$ scidownl download --input-file ./test/dois.txt --out ./paper/
+```
+
+When using the input file option, any failed downloads will be automatically saved to a new file with "_failed.txt" appended to the original filename. For example, if your input file is "dois.txt", failed DOIs will be saved to "dois_failed.txt".
+
+Progress reports will be shown after every 5 DOIs are processed, and a final report will summarize the results at the end.
 
 #### Customize the output location of papers
 
-By default, the downloaded paper is named by the paper's title. With option `-o` or `--out`，you can customize the output location of downloaded papers, whcih could be an absolute path or a relative path, and a direcotry or a file path.
+By default, the downloaded paper is named by the sanitized DOI. With option `-o` or `--out`，you can customize the output location of downloaded papers, which could be an absolute path or a relative path, and a directory or a file path.
 
--   Output the paepr to a directory:
+-   Output the paper to a directory:
 
     ```bash
-    $ scidownl download --pmid 31395057 --out /absolute/path/of/a/directory/
+    $ scidownl download --pmid 31395057 --out ./paper/
     # NOTE that the '/' at the end of the directory path is required, otherwise the last segment will be treated as the filename rather than a directory.
     
     $ scidownl download --pmid 31395057 --out ../relative/path/of/a/directory/

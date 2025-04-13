@@ -101,13 +101,28 @@ def list_domains():
                    "It's recommended to leave this option empty.")
 @click.option("-x", "--proxy",
               help="Proxy with the format of SCHEME=PROXY_ADDRESS. e.g., --proxy http=http://127.0.0.1:7890.")
+@click.option("-i", "--input-file",
+              help="Path to a file containing one DOI per line. The output failed DOIs will be saved to a file named "
+                   "after this file with '_failed.txt' suffix.")
 @click.help_option("-h", "--help")
-def download(doi, pmid, title, out, scihub_url, proxy: str):
+def download(doi, pmid, title, out, scihub_url, proxy: str, input_file=None):
     """Download paper(s) by DOI or PMID."""
     from ..core.task import ScihubTask
     from ..config import get_config
 
     configs = get_config()
+
+    # Process DOIs from input file if provided
+    if input_file:
+        try:
+            with open(input_file, 'r') as f:
+                file_dois = [line.strip() for line in f if line.strip()]
+            # Add DOIs from file to the list
+            dois_from_args = list(doi)  # convert tuple to list
+            doi = tuple(dois_from_args + file_dois)
+            logger.info(f"Loaded {len(file_dois)} DOIs from {input_file}")
+        except Exception as e:
+            logger.error(f"Error reading DOIs from {input_file}: {e}")
 
     logger.info("Run scihub tasks. Tasks information: ")
     if len(doi) > 0:
@@ -172,12 +187,60 @@ def download(doi, pmid, title, out, scihub_url, proxy: str):
             'out': out,
             'proxies': proxies
         })
+    
+    # Initialize counters for tracking progress
+    total_attempted = 0
+    successful_downloads = 0
+    failed_sources = []
+    
+    logger.info("Starting downloads...")
     for task_kwargs in tasks:
+        total_attempted += 1
         task = ScihubTask(**task_kwargs)
         try:
             task.run()
+            # Task was successful if status is not an error state
+            if task.context.get('status') not in ['crawling_failed', 'extracting_failed', 'downloading_failed']:
+                successful_downloads += 1
+            else:
+                # Record failed DOI/PMID/title
+                failed_sources.append(task_kwargs['source_keyword'])
         except Exception as e:
             logger.error(f"final status: {task.context['status']}, error: {task.context['error']}")
+            # Record failed DOI/PMID/title
+            failed_sources.append(task_kwargs['source_keyword'])
+        
+        # Log progress every 5 attempts or when the last task is completed
+        # Prevent double logging if the total is a multiple of 5
+        if (total_attempted % 5 == 0 and total_attempted < len(tasks)) or total_attempted == len(tasks):
+            logger.info(f"Progress: {successful_downloads}/{total_attempted} papers downloaded successfully")
+    
+    # Create a file with failed sources if there are any
+    if failed_sources and input_file:
+        # Generate output filename based on input file
+        base_name, ext = os.path.splitext(input_file)
+        failed_file = f"{base_name}_failed{ext}"
+        
+        # Write failed sources to the file
+        try:
+            with open(failed_file, 'w') as f:
+                for source in failed_sources:
+                    f.write(f"{source}\n")
+            logger.info(f"Saved {len(failed_sources)} failed DOIs to {failed_file}")
+        except Exception as e:
+            logger.error(f"Error writing failed DOIs to {failed_file}: {e}")
+    
+    # Final report
+    success_rate = (successful_downloads / total_attempted * 100) if total_attempted > 0 else 0
+    logger.info("=" * 50)
+    logger.info(f"Download completed. Final report:")
+    logger.info(f"Total papers attempted: {total_attempted}")
+    logger.info(f"Successfully downloaded: {successful_downloads}")
+    logger.info(f"Failed downloads: {len(failed_sources)}")
+    logger.info(f"Success rate: {success_rate:.1f}%")
+    if failed_sources and input_file:
+        logger.info(f"Failed DOIs saved to: {failed_file}")
+    logger.info("=" * 50)
 
 
 if __name__ == '__main__':
